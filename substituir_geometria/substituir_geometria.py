@@ -146,9 +146,6 @@ class SubstituirGeometriaPlugin:
         self.new_canvas = self.create_canvas()
         layout.addWidget(self.new_canvas, 1)
 
-        zoom_button = QPushButton("Ampliar no mapa principal")
-        zoom_button.clicked.connect(self.zoom_selected_on_main_canvas)
-        layout.addWidget(zoom_button)
         return panel
 
     @staticmethod
@@ -404,17 +401,6 @@ class SubstituirGeometriaPlugin:
             extent.scale(1.15)
             canvas.setExtent(extent)
         canvas.refresh()
-
-    def zoom_selected_on_main_canvas(self):
-        selected = self.results_table.selectionModel().selectedRows()
-        if not selected or selected[0].row() >= len(self.operations):
-            return
-        operation = self.operations[selected[0].row()]
-        extent = operation["old"].boundingBox()
-        extent.combineExtentWith(operation["new"].boundingBox())
-        extent.scale(1.15)
-        self.iface.mapCanvas().setExtent(extent)
-        self.iface.mapCanvas().refresh()
 
     def apply_changes(self):
         if not self.operations:

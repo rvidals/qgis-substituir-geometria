@@ -14,7 +14,7 @@ about=O complemento Substituir geometria foi desenvolvido para atualizar geometr
     - confirmação antes da gravação e indicação das feições que serão alteradas.
     
     Use a prévia para conferir o resultado antes de aplicar as substituições. O complemento preserva a posição e o zoom do mapa principal do QGIS durante a atualização da prévia.
-version=0.5.0
+version=0.5.1
 qgisMinimumVersion=3.22
 author=Rogerio Vidal de Siqueira
 email=rogeriovidalsiqueira@gmail.com
@@ -23,7 +23,8 @@ tags=geometria, edição vetorial, cadastro imobiliário, RIP, lote, pré-visual
 icon=icone.png
 experimental=False
 deprecated=False
-changelog=0.5.0 - Metadados revisados com descrição detalhada, funcionalidades e histórico de versão.
+changelog=0.5.1 - Removido o comando de ampliar no mapa principal; a prévia permanece no painel do complemento.
+    0.5.0 - Metadados revisados com descrição detalhada, funcionalidades e histórico de versão.
     0.4.8 - Barra de ferramentas própria, móvel e acoplável.
     0.4.7 - Ícone personalizado na barra de ferramentas.
     0.4.5 - Cores da prévia padronizadas: vermelho para original e verde para nova.

@@ -27,6 +27,6 @@ As correspondências da camada-alvo são localizadas por filtro do próprio prov
 
 ## Comparação visual antes/depois
 
-Depois de gerar a prévia, selecione uma linha em **Substituições válidas**. Na lateral direita, o painel **Original** mostra a geometria atual em vermelho e o painel **Nova geometria** mostra a substituta em verde. Ambos se ajustam à feição selecionada e exibem o identificador, a camada e as áreas antes/depois. Use **Ampliar no mapa principal** para localizar essa comparação no mapa do projeto.
+Depois de gerar a prévia, selecione uma linha em **Substituições válidas**. Na lateral direita, o painel **Original** mostra a geometria atual em vermelho e o painel **Nova geometria** mostra a substituta em verde. Ambos se ajustam à feição selecionada e exibem o identificador, a camada e as áreas antes/depois.
 
 Atualizar a prévia não muda o zoom nem a posição do mapa principal do QGIS.
