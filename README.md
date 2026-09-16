@@ -1,32 +1,142 @@
-# Substituir geometria com pré-visualização
+# Substituir geometria
 
-Complemento para QGIS 3 que substitui geometrias em lote por associação de atributos, sempre com pré-visualização.
+<p align="center">
+  <img src="substituir_geometria/icone.png" alt="Ícone do plugin Substituir geometria" width="112">
+</p>
 
-## Instalação para teste
+<p align="center">
+  <strong>Substituição segura de geometrias vetoriais no QGIS, com pré-visualização, validação e processamento em lote.</strong>
+</p>
 
-1. Copie a pasta `substituir_geometria` para a pasta de complementos do seu perfil do QGIS. No Windows, normalmente ela fica em `%APPDATA%\\QGIS\\QGIS3\\profiles\\default\\python\\plugins`.
-2. Reinicie o QGIS ou use **Complementos > Gerenciar e instalar complementos** e ative **Substituir geometria**.
-3. Abra **Substituir geometria > Substituir geometria** ou use o ícone na barra própria do complemento.
+<p align="center">
+  <img src="https://img.shields.io/badge/QGIS-3.22%2B-589632?logo=qgis&logoColor=white" alt="QGIS 3.22 ou superior">
+  <img src="https://img.shields.io/badge/versão-0.5.1-blue" alt="Versão 0.5.1">
+  <img src="https://img.shields.io/badge/categoria-Vetor-1f6feb" alt="Categoria Vetor">
+</p>
 
-O complemento também cria uma barra de ferramentas própria, móvel e acoplável. Arraste a alça à esquerda do ícone para posicioná-la onde preferir no QGIS.
+## Visão geral
 
-## Uso
+**Substituir geometria** é um complemento para QGIS 3 voltado à atualização controlada de geometrias em camadas vetoriais. Ele foi pensado para fluxos cadastrais em que a conferência visual, a associação por identificadores e a segurança antes da gravação são essenciais.
 
-1. Escolha o modo de operação:
-   - **Uma geometria para vários identificadores**: selecione uma única geometria corrigida e informe os RIPs que devem recebê-la. Esse modo não exige nenhum atributo na camada de origem. Sem seleção, é usada a primeira feição da origem.
-   - **Várias geometrias por identificador**: escolha também o campo identificador da origem (por exemplo, `rip`). Cada geometria será associada ao mesmo valor encontrado na camada-alvo.
-2. Informe os RIPs/identificadores, um por linha, vírgula ou ponto e vírgula. No modo de várias geometrias, esse filtro é opcional; em branco, todas as feições da origem são consideradas.
-3. Escolha uma camada-alvo, clique em **Adicionar camada-alvo** e selecione o campo identificador dela. Repita para cada camada a atualizar; os campos podem ter nomes diferentes.
-   Use o botão **Remover** da própria linha se incluir uma camada por engano.
-4. Clique em **Atualizar prévia**. A tabela mostra o resultado por camada; no mapa, a feição existente aparece em vermelho e a geometria nova em verde.
-5. Confirme a prévia e clique em **Aplicar substituições válidas**.
+Em vez de alterar uma camada diretamente, o complemento prepara uma prévia das mudanças, valida as correspondências e só grava após confirmação explícita.
 
-O complemento reprojeta as geometrias quando as camadas usam SRCs diferentes. Por segurança, associações sem correspondência ou com mais de uma feição na origem/destino são apresentadas como pendência e não são gravadas. Ele só inicia e grava uma sessão de edição própria se a camada-alvo ainda não estiver em edição.
+## Funcionalidades
 
-As correspondências da camada-alvo são localizadas por filtro do próprio provedor de dados do QGIS. Em caso de pendência por mais de uma feição, a prévia mostra os IDs retornados para facilitar a conferência.
+- Substituição de uma geometria para um ou vários identificadores.
+- Processamento em lote de várias geometrias associadas por atributo.
+- Inclusão de múltiplas camadas-alvo na mesma operação.
+- Escolha independente do campo identificador de cada camada-alvo.
+- Pré-visualização no mapa principal:
+  - vermelho: geometria original;
+  - verde: geometria nova.
+- Painel comparativo antes/depois, com identificação da feição e áreas.
+- Reprojeção automática quando origem e destino usam SRCs diferentes.
+- Validação de feições ausentes, duplicadas ou com geometria incompatível.
+- Exibição dos IDs das feições quando houver pendência.
+- Confirmação obrigatória antes de gravar alterações.
+- Barra de ferramentas própria, móvel e acoplável.
 
-## Comparação visual antes/depois
+## Modos de operação
 
-Depois de gerar a prévia, selecione uma linha em **Substituições válidas**. Na lateral direita, o painel **Original** mostra a geometria atual em vermelho e o painel **Nova geometria** mostra a substituta em verde. Ambos se ajustam à feição selecionada e exibem o identificador, a camada e as áreas antes/depois.
+| Modo | Quando usar | Como funciona |
+|---|---|---|
+| **Uma geometria para vários identificadores** | Quando a camada corrigida não possui RIP ou outro atributo de associação. | Selecione uma geometria de origem e informe os RIPs que devem recebê-la. |
+| **Várias geometrias por identificador** | Quando cada geometria corrigida possui um campo como **rip**, código ou identificador equivalente. | O plugin associa cada geometria à feição correspondente em cada camada-alvo. |
 
-Atualizar a prévia não muda o zoom nem a posição do mapa principal do QGIS.
+> No primeiro modo, sem uma feição selecionada na origem, o plugin usa a primeira feição válida da camada.
+
+## Fluxo de trabalho
+
+~~~text
+Camada com geometria(s) corrigida(s)
+                ↓
+Seleção do modo e dos identificadores
+                ↓
+Configuração das camadas-alvo e seus campos
+                ↓
+Prévia e validação das correspondências
+                ↓
+Comparação visual: original × nova geometria
+                ↓
+Confirmação e gravação das substituições válidas
+~~~
+
+## Instalação
+
+### Pelo arquivo ZIP
+
+1. Baixe ou gere o arquivo **substituir_geometria_qgis.zip**.
+2. No QGIS, abra **Complementos > Gerenciar e instalar complementos**.
+3. Acesse **Instalar a partir do ZIP**.
+4. Selecione o arquivo ZIP e conclua a instalação.
+5. Ative o complemento **Substituir geometria**, caso ele não seja ativado automaticamente.
+
+### Manualmente
+
+1. Copie a pasta **substituir_geometria** para:
+
+   ~~~text
+   %APPDATA%\QGIS\QGIS3\profiles\default\python\plugins
+   ~~~
+
+2. Reinicie o QGIS.
+3. Abra **Substituir geometria > Substituir geometria** ou use o ícone na barra de ferramentas do complemento.
+
+## Como usar
+
+1. Escolha o **modo de operação**.
+2. Escolha a camada que contém a(s) geometria(s) nova(s).
+3. Informe os RIPs ou identificadores:
+   - um por linha;
+   - separados por vírgula; ou
+   - separados por ponto e vírgula.
+4. Adicione uma ou mais camadas-alvo.
+5. Para cada camada-alvo, escolha o campo que contém o identificador correspondente.
+6. Clique em **Atualizar prévia**.
+7. Confira a tabela de resultados e selecione uma substituição válida para visualizar a comparação detalhada.
+8. Clique em **Aplicar substituições válidas** e confirme a operação.
+
+## Pré-visualização e segurança
+
+O complemento não altera o zoom nem a posição do canvas principal ao atualizar a prévia. A inspeção detalhada acontece nos painéis do próprio plugin:
+
+| Painel | Cor | Informação exibida |
+|---|---|---|
+| **Original** | Vermelho | Geometria atual, identificador, camada e área. |
+| **Nova geometria** | Verde | Geometria que será aplicada e sua área. |
+
+Antes de gravar, o plugin bloqueia associações ambíguas ou incompletas, como:
+
+- identificador ausente na camada-alvo;
+- mais de uma geometria de origem para o mesmo identificador;
+- mais de uma feição-alvo encontrada;
+- geometrias de tipos incompatíveis.
+
+## Requisitos
+
+- QGIS 3.22 ou superior.
+- Camadas vetoriais poligonais.
+- Permissão de edição nas camadas-alvo.
+
+## Estrutura do projeto
+
+~~~text
+.
+├── substituir_geometria/
+│   ├── __init__.py
+│   ├── icone.png
+│   ├── metadata.txt
+│   └── substituir_geometria.py
+├── substituir_geometria_qgis.zip
+└── README.md
+~~~
+
+## 📩 Contato
+
+👤 **Rogerio Vidal de Siqueira**\
+📧 rogeriovidalsiqueira@gmail.com\
+🔗 [LinkedIn](https://www.linkedin.com/in/rogerio-vidal-de-siqueira-9478aa136/) | [GitHub](https://github.com/rvidals)
+
+---
+
+> “Com ciência, dados e colaboração, construímos cidades mais resilientes!” 🌱🌏
