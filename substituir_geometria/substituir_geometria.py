@@ -1,6 +1,7 @@
 from collections import defaultdict
 import os
 import re
+import unicodedata
 
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QColor, QIcon
@@ -65,6 +66,12 @@ class SubstituirGeometriaPlugin:
         left_layout.addLayout(mode_form)
 
         source_form = QFormLayout()
+        self.identifier_type = QComboBox()
+        self.identifier_type.addItem("RIP", "rip")
+        self.identifier_type.addItem("Processo administrativo (PA)", "pa")
+        self.identifier_type.currentIndexChanged.connect(self.update_identifier_fields)
+        source_form.addRow("Identificador:", self.identifier_type)
+
         self.source_layer = QgsMapLayerComboBox()
         self.source_layer.setFilters(QgsMapLayerProxyModel.PolygonLayer)
         self.source_layer.layerChanged.connect(self.populate_source_fields)
@@ -162,13 +169,81 @@ class SubstituirGeometriaPlugin:
         canvas.setLayers([])
         return canvas
 
+    @staticmethod
+    def normalize_field_name(value):
+        value = unicodedata.normalize("NFKD", str(value))
+        value = "".join(char for char in value if not unicodedata.combining(char))
+        return re.sub(r"[^a-z0-9]", "", value.lower())
+
+    def identifier_field_candidates(self):
+        if self.identifier_type.currentData() == "pa":
+            return {
+                "processoadministrativo", "processoadministrativo",
+                "processo", "processosei", "numeroprocesso",
+                "numerodoprocesso", "nprocesso", "nprocessosei", "pa"
+            }
+        return {"rip", "ripspunet", "ripspiunet"}
+
+    def find_identifier_field(self, layer):
+        if not isinstance(layer, QgsVectorLayer):
+            return None
+        fields = list(layer.fields())
+        candidates = self.identifier_field_candidates()
+        normalized = [(field.name(), self.normalize_field_name(field.name())) for field in fields]
+
+        # Primeiro procura correspondência exata normalizada.
+        for name, norm in normalized:
+            if norm in candidates:
+                return name
+
+        # Depois procura nomes que contenham termos inequívocos.
+        if self.identifier_type.currentData() == "pa":
+            for name, norm in normalized:
+                if "processoadministrativo" in norm or "processosei" in norm:
+                    return name
+        else:
+            for name, norm in normalized:
+                if norm == "rip" or norm.startswith("rip"):
+                    return name
+        return None
+
     def populate_source_fields(self, layer):
         self.source_field.clear()
         if isinstance(layer, QgsVectorLayer):
             self.source_field.addItems([field.name() for field in layer.fields()])
-            rip_index = self.source_field.findText("rip", Qt.MatchFixedString)
-            if rip_index >= 0:
-                self.source_field.setCurrentIndex(rip_index)
+            identifier_field = self.find_identifier_field(layer)
+            if identifier_field:
+                index = self.source_field.findText(identifier_field, Qt.MatchFixedString)
+                if index >= 0:
+                    self.source_field.setCurrentIndex(index)
+
+    def update_identifier_fields(self):
+        layer = self.source_layer.currentLayer()
+        self.populate_source_fields(layer)
+
+        # Atualiza os campos das camadas-alvo para o identificador escolhido.
+        project_layers = QgsProject.instance().mapLayers()
+        for row in range(self.targets_table.rowCount()):
+            combo = self.targets_table.cellWidget(row, 1)
+            if not combo:
+                continue
+            layer_id = combo.property("layer_id")
+            target_layer = project_layers.get(layer_id)
+            if not isinstance(target_layer, QgsVectorLayer):
+                continue
+            field_name = self.find_identifier_field(target_layer)
+            combo.blockSignals(True)
+            if field_name:
+                index = combo.findText(field_name, Qt.MatchFixedString)
+                if index >= 0:
+                    combo.setCurrentIndex(index)
+            combo.blockSignals(False)
+
+        identifier = self.identifier_type.currentText()
+        if hasattr(self, "identifiers_label"):
+            self.identifiers_label.setText(
+                f"{identifier}s a processar (um por linha, vírgula ou ponto e vírgula):"
+            )
 
     def update_mode_controls(self):
         """Exibe somente os campos pertinentes ao modo de associação escolhido."""
@@ -177,21 +252,21 @@ class SubstituirGeometriaPlugin:
         self.source_field.setVisible(is_matched)
         if is_matched:
             self.identifiers_label.setText(
-                "RIPs/identificadores a processar (opcional; em branco processa todas as geometrias):"
+                f"{self.identifier_type.currentText()}s a processar (opcional; em branco processa todas as geometrias):"
             )
             self.identifiers.setPlaceholderText("Em branco: processa todas as feições da camada de origem")
             self.info.setText(
-                "Cada geometria da origem será associada pelo campo identificador escolhido. "
+                "Cada geometria da origem será associada pelo campo correspondente ao identificador escolhido. "
                 "Feições selecionadas na origem têm prioridade; sem seleção, todas são consideradas."
             )
         else:
             self.identifiers_label.setText(
-                "RIPs/identificadores que receberão a mesma geometria (obrigatório):"
+                f"{self.identifier_type.currentText()}s que receberão a mesma geometria (obrigatório):"
             )
-            self.identifiers.setPlaceholderText("Exemplo: 4895 00014.500-8")
+            self.identifiers.setPlaceholderText("Exemplo: RIP ou número do processo administrativo")
             self.info.setText(
                 "Selecione uma única geometria na camada de origem. Ela será aplicada aos identificadores informados, "
-                "usando o campo escolhido em cada camada-alvo. Sem seleção, será usada a primeira feição da origem."
+                "usando o campo correspondente ao identificador escolhido em cada camada-alvo. Sem seleção, será usada a primeira feição da origem."
             )
 
     def add_target_layer(self):
@@ -209,9 +284,11 @@ class SubstituirGeometriaPlugin:
         combo = QComboBox()
         combo.setProperty("layer_id", layer.id())
         combo.addItems([field.name() for field in layer.fields()])
-        rip_index = combo.findText("rip", Qt.MatchFixedString)
-        if rip_index >= 0:
-            combo.setCurrentIndex(rip_index)
+        identifier_field = self.find_identifier_field(layer)
+        if identifier_field:
+            identifier_index = combo.findText(identifier_field, Qt.MatchFixedString)
+            if identifier_index >= 0:
+                combo.setCurrentIndex(identifier_index)
         self.targets_table.setCellWidget(row, 1, combo)
         self.targets_table.setItem(row, 2, QTableWidgetItem("Aguardando prévia"))
         remove_button = QPushButton("Remover")
@@ -246,7 +323,7 @@ class SubstituirGeometriaPlugin:
         requested = self.requested_identifiers()
         if self.operation_mode.currentData() == "single_geometry":
             if not requested:
-                raise ValueError("Informe ao menos um RIP/identificador para receber a geometria.")
+                raise ValueError(f"Informe ao menos um {self.identifier_type.currentText()} para receber a geometria.")
             selected = layer.selectedFeatures()
             if len(selected) > 1:
                 raise ValueError("Selecione somente uma geometria na camada de origem.")

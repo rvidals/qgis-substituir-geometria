@@ -23,7 +23,8 @@ tags=geometria, edição vetorial, cadastro imobiliário, RIP, lote, pré-visual
 icon=icone.png
 experimental=False
 deprecated=False
-changelog=0.5.1 - Removido o comando de ampliar no mapa principal; a prévia permanece no painel do complemento.
+changelog=0.6.0 - Adicionando a possibilidade de escolher qual tipo de identificador será usado: RIP ou Processo Administrativo (PA).
+    0.5.1 - Removido o comando de ampliar no mapa principal; a prévia permanece no painel do complemento.
     0.5.0 - Metadados revisados com descrição detalhada, funcionalidades e histórico de versão.
     0.4.8 - Barra de ferramentas própria, móvel e acoplável.
     0.4.7 - Ícone personalizado na barra de ferramentas.
