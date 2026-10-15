@@ -7,14 +7,17 @@ from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QColor, QIcon
 from qgis.PyQt.QtWidgets import (
     QAction, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QFrame,
-    QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton,
+    QCheckBox, QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton,
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 from qgis.core import (
     QgsCoordinateTransform, QgsExpression, QgsFeatureRequest, QgsGeometry,
     QgsMapLayerProxyModel, QgsProject, QgsVectorLayer,
 )
-from qgis.gui import QgsMapCanvas, QgsMapLayerComboBox, QgsRubberBand
+from qgis.gui import (
+    QgsMapCanvas, QgsMapLayerComboBox, QgsProjectionSelectionWidget,
+    QgsRubberBand,
+)
 
 
 class SubstituirGeometriaPlugin:
@@ -146,6 +149,23 @@ class SubstituirGeometriaPlugin:
         self.overview_info.setWordWrap(True)
         layout.addWidget(self.overview_info)
 
+        area_form = QFormLayout()
+        self.area_crs = QgsProjectionSelectionWidget()
+        self.area_crs.setCrs(QgsProject.instance().crs())
+        self.area_crs.crsChanged.connect(self.show_selected_overview)
+        area_form.addRow("CRS/EPSG para área:", self.area_crs)
+
+        self.update_area_checkbox = QCheckBox("Atualizar atributo de área")
+        self.update_area_checkbox.toggled.connect(self.toggle_area_update)
+        area_form.addRow(self.update_area_checkbox)
+
+        self.area_field = QComboBox()
+        self.area_field.setEditable(True)
+        self.area_field.setCurrentText("areaCartesiana")
+        self.area_field.setEnabled(False)
+        area_form.addRow("Campo de área:", self.area_field)
+        layout.addLayout(area_form)
+
         layout.addWidget(self.overview_label("Original", QColor(210, 0, 0)))
         self.old_canvas = self.create_canvas()
         layout.addWidget(self.old_canvas, 1)
@@ -168,6 +188,50 @@ class SubstituirGeometriaPlugin:
         canvas.setMinimumHeight(190)
         canvas.setLayers([])
         return canvas
+
+    def toggle_area_update(self, enabled):
+        self.area_field.setEnabled(enabled)
+
+    def refresh_area_fields(self):
+        """Oferece os campos das camadas-alvo para um único campo global de área."""
+        if not hasattr(self, "area_field"):
+            return
+        current = self.area_field.currentText().strip() or "areaCartesiana"
+        field_names = []
+        project_layers = QgsProject.instance().mapLayers()
+        for row in range(self.targets_table.rowCount()):
+            combo = self.targets_table.cellWidget(row, 1)
+            layer = project_layers.get(combo.property("layer_id")) if combo else None
+            if isinstance(layer, QgsVectorLayer):
+                for field in layer.fields():
+                    if field.name() not in field_names:
+                        field_names.append(field.name())
+        self.area_field.blockSignals(True)
+        self.area_field.clear()
+        self.area_field.addItems(field_names)
+        self.area_field.setCurrentText(current)
+        self.area_field.blockSignals(False)
+
+    def selected_area_crs(self):
+        crs = self.area_crs.crs()
+        if not crs.isValid() or crs.isGeographic():
+            raise ValueError(
+                "Selecione um CRS projetado para o cálculo de área (por exemplo, a zona UTM adequada)."
+            )
+        return crs
+
+    def area_in_selected_crs(self, geometry, layer):
+        crs = self.selected_area_crs()
+        projected_geometry = QgsGeometry(geometry)
+        if layer.crs() != crs:
+            transform = QgsCoordinateTransform(layer.crs(), crs, QgsProject.instance())
+            if projected_geometry.transform(transform) != 0:
+                raise ValueError("Falha ao reprojetar a geometria para o CRS de cálculo de área.")
+        return projected_geometry.area()
+
+    @staticmethod
+    def format_area(area):
+        return f"{area:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
 
     @staticmethod
     def normalize_field_name(value):
@@ -294,6 +358,7 @@ class SubstituirGeometriaPlugin:
         remove_button = QPushButton("Remover")
         remove_button.clicked.connect(lambda checked=False, layer_id=layer.id(): self.remove_target_layer_by_id(layer_id))
         self.targets_table.setCellWidget(row, 3, remove_button)
+        self.refresh_area_fields()
 
     def remove_target_layer(self):
         row = self.targets_table.currentRow()
@@ -307,6 +372,7 @@ class SubstituirGeometriaPlugin:
             if combo and combo.property("layer_id") == layer_id:
                 self.targets_table.removeRow(row)
                 self.info.setText("Camada-alvo removida da configuração.")
+                self.refresh_area_fields()
                 return
 
     @staticmethod
@@ -371,12 +437,26 @@ class SubstituirGeometriaPlugin:
             return
         try:
             source_layer, source_grouped, requested = self.source_geometries_by_key()
+            update_area = self.update_area_checkbox.isChecked()
+            area_field_name = self.area_field.currentText().strip()
+            if update_area:
+                if not area_field_name:
+                    raise ValueError("Informe o campo de área a ser atualizado.")
+                self.selected_area_crs()
             duplicates = {key for key, features in source_grouped.items() if len(features) > 1}
             self.issues.extend(f"Origem: {key} possui mais de uma geometria" for key in duplicates)
             if requested:
                 self.issues.extend(f"Origem: {key} não foi encontrada" for key in sorted(requested - set(source_grouped)))
             total_valid = 0
             for row, target_layer, field_name in self.target_rows():
+                if update_area and target_layer.fields().indexOf(area_field_name) < 0:
+                    problems = len(source_grouped)
+                    self.issues.append(
+                        f"{target_layer.name()}: campo de área '{area_field_name}' não encontrado"
+                    )
+                    result = f"0 pronta(s); {problems} pendência(s)"
+                    self.targets_table.item(row, 2).setText(result)
+                    continue
                 # Consulta no provedor, equivalente ao filtro que o usuário executa
                 # no Console Python do QGIS. Isso evita contagem por varredura local.
                 target_grouped = {}
@@ -455,11 +535,19 @@ class SubstituirGeometriaPlugin:
         layer = operation["layer"]
         self.set_overview_canvas(self.old_canvas, "old", operation["old"], layer, QColor(210, 0, 0))
         self.set_overview_canvas(self.new_canvas, "new", operation["new"], layer, QColor(0, 150, 0))
-        self.overview_info.setText(
-            f"Identificador: {operation['key']}\nCamada: {layer.name()}\n"
-            f"Área original: {operation['old'].area():,.2f} m²\n"
-            f"Área nova: {operation['new'].area():,.2f} m²"
-        )
+        try:
+            old_area = self.area_in_selected_crs(operation["old"], layer)
+            new_area = self.area_in_selected_crs(operation["new"], layer)
+            self.overview_info.setText(
+                f"Identificador: {operation['key']}\nCamada: {layer.name()}\n"
+                f"CRS de cálculo: {self.area_crs.crs().authid()}\n"
+                f"Área original: {self.format_area(old_area)} m²\n"
+                f"Área nova: {self.format_area(new_area)} m²"
+            )
+        except ValueError as error:
+            self.overview_info.setText(
+                f"Identificador: {operation['key']}\nCamada: {layer.name()}\n{error}"
+            )
 
     def set_overview_canvas(self, canvas, name, geometry, layer, color):
         old_band = self.overview_bands.get(name)
@@ -482,10 +570,16 @@ class SubstituirGeometriaPlugin:
     def apply_changes(self):
         if not self.operations:
             return
+        update_area = self.update_area_checkbox.isChecked()
+        area_field_name = self.area_field.currentText().strip()
+        area_message = (
+            f"\nO campo '{area_field_name}' também será atualizado com a área calculada."
+            if update_area else ""
+        )
         answer = QMessageBox.warning(
             self.dialog, "Confirmar substituições em lote",
             f"Aplicar {len(self.operations)} substituição(ões) válida(s)?\n\n"
-            "As pendências mostradas na prévia não serão alteradas.",
+            "As pendências mostradas na prévia não serão alteradas." + area_message,
             QMessageBox.Yes | QMessageBox.Cancel, QMessageBox.Cancel,
         )
         if answer != QMessageBox.Yes:
@@ -501,9 +595,18 @@ class SubstituirGeometriaPlugin:
                         raise RuntimeError("Não foi possível iniciar a edição de " + layer.name())
                     started_here.append(layer)
             for layer, changes in by_layer.items():
+                area_field_index = layer.fields().indexOf(area_field_name) if update_area else -1
+                if update_area and area_field_index < 0:
+                    raise RuntimeError(f"Campo de área '{area_field_name}' não encontrado em {layer.name()}")
                 for operation in changes:
                     if not layer.changeGeometry(operation["feature_id"], QgsGeometry(operation["new"])):
                         raise RuntimeError(f"Não foi possível alterar {operation['key']} em {layer.name()}")
+                    if update_area:
+                        area = self.area_in_selected_crs(operation["new"], layer)
+                        if not layer.changeAttributeValue(operation["feature_id"], area_field_index, area):
+                            raise RuntimeError(
+                                f"Não foi possível atualizar o campo de área de {operation['key']} em {layer.name()}"
+                            )
             for layer in started_here:
                 if not layer.commitChanges():
                     errors = layer.commitErrors()

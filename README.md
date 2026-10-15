@@ -10,7 +10,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/QGIS-3.22%2B-589632?logo=qgis&logoColor=white" alt="QGIS 3.22 ou superior">
-  <img src="https://img.shields.io/badge/versão-0.5.1-blue" alt="Versão 0.5.1">
+  <img src="https://img.shields.io/badge/versão-0.6.1-blue" alt="Versão 0.6.1">
   <img src="https://img.shields.io/badge/categoria-Vetor-1f6feb" alt="Categoria Vetor">
 </p>
 
@@ -30,6 +30,8 @@ Em vez de alterar uma camada diretamente, o complemento prepara uma prévia das 
   - vermelho: geometria original;
   - verde: geometria nova.
 - Painel comparativo antes/depois, com identificação da feição e áreas.
+- Cálculo de área em CRS/EPSG projetado selecionado pelo usuário, como a zona UTM adequada.
+- Atualização opcional de um atributo global de área, com **areaCartesiana** como sugestão padrão.
 - Reprojeção automática quando origem e destino usam SRCs diferentes.
 - Validação de feições ausentes, duplicadas ou com geometria incompatível.
 - Exibição dos IDs das feições quando houver pendência.
@@ -111,6 +113,18 @@ Antes de gravar, o plugin bloqueia associações ambíguas ou incompletas, como:
 - mais de uma geometria de origem para o mesmo identificador;
 - mais de uma feição-alvo encontrada;
 - geometrias de tipos incompatíveis.
+
+### Cálculo e atualização de área
+
+No painel **Comparação da alteração selecionada**, escolha o **CRS/EPSG para área** antes de analisar ou gravar os valores. Utilize um CRS projetado — normalmente a zona UTM aplicável à área de trabalho — para que os resultados sejam exibidos em metros quadrados.
+
+Se quiser gravar esse valor na camada-alvo:
+
+1. Marque **Atualizar atributo de área**.
+2. Escolha o campo desejado; o padrão sugerido é **areaCartesiana**.
+3. Gere novamente a prévia e aplique as substituições válidas.
+
+O mesmo campo é usado para todas as camadas-alvo. Por segurança, se o campo não existir em alguma delas, as substituições dessa camada são apresentadas como pendência e não são gravadas.
 
 ## Requisitos
 
